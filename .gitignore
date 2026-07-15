@@ -1,0 +1,11 @@
+node_modules/
+.npm-cache/
+dist/
+dist-electron/
+release/
+release-fixed/
+.vite/
+*.log
+coverage/
+output/
+.agents/
