@@ -56,7 +56,7 @@ test('creates tabs, configures AI, and replaces semantic or unresolved input bef
     await page.getByLabel('Name').fill('Mock provider');
     await page.getByLabel('Provider').selectOption('openai-compatible');
     await page.getByLabel('Base URL').fill(`http://127.0.0.1:${port}/v1`);
-    await page.getByLabel('Model').fill('mock-model');
+    await page.getByRole('textbox', { name: 'Model', exact: true }).fill('mock-model');
     await page.getByLabel('API key').fill('test-key');
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByText(/Saved\./)).toBeVisible();
