@@ -28,6 +28,7 @@ import { TerminalPane, type TerminalPaneHandle } from './components/TerminalPane
 
 interface UiSession extends TerminalSession {
   shell: ShellProfile;
+  ready: boolean;
 }
 
 interface RequestTemplate extends Omit<AiRequest, 'requestId'> {}
@@ -103,6 +104,7 @@ export function App() {
           cwd: '',
           aiEnabled: false,
           shell: preferred,
+          ready: false,
         }]);
         setActiveId(id);
       }
@@ -222,6 +224,7 @@ export function App() {
       cwd: '',
       aiEnabled: false,
       shell,
+      ready: false,
     };
     setSessions((current) => [...current, session]);
     setActiveId(id);
@@ -352,7 +355,7 @@ export function App() {
       </header>
 
       <section className="command-bar">
-        <button className={activeSession?.aiEnabled ? 'ai-toggle enabled' : 'ai-toggle'} role="switch" aria-checked={activeSession?.aiEnabled ?? false} onClick={toggleAi} disabled={!activeSession}>
+        <button className={activeSession?.aiEnabled ? 'ai-toggle enabled' : 'ai-toggle'} role="switch" aria-checked={activeSession?.aiEnabled ?? false} onClick={toggleAi} disabled={!activeSession?.ready}>
           <Sparkles size={16} /><span>{activeSession?.aiEnabled ? 'AI on' : 'AI off'}</span><i />
         </button>
         {activeSession?.aiEnabled && settings && (
@@ -393,7 +396,7 @@ export function App() {
               active={session.id === activeId}
               fontSize={fontSize}
               theme={theme}
-              onCreated={(created) => setSessions((current) => current.map((candidate) => candidate.id === created.id ? { ...candidate, ...created } : candidate))}
+              onCreated={(created) => setSessions((current) => current.map((candidate) => candidate.id === created.id ? { ...candidate, ...created, ready: true } : candidate))}
               onExited={() => undefined}
               onCwdChanged={(sessionId, cwd) => setSessions((current) => current.map((candidate) => candidate.id === sessionId ? { ...candidate, cwd } : candidate))}
             />

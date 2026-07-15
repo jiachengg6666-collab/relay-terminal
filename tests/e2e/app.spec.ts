@@ -62,8 +62,10 @@ test('creates tabs, configures AI, and replaces semantic or unresolved input bef
     await expect(page.getByText(/Saved\./)).toBeVisible();
     await page.getByTitle('Close settings').click();
 
-    await page.getByRole('switch').click();
-    await expect(page.getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+    const aiSwitch = page.getByRole('switch');
+    await expect(aiSwitch).toBeEnabled({ timeout: 20_000 });
+    await aiSwitch.click();
+    await expect(aiSwitch).toHaveAttribute('aria-checked', 'true');
     expect(requestCount).toBe(0);
     await page.locator('.terminal-pane.is-active .xterm-helper-textarea').focus();
     await page.keyboard.type('/ai remove a temporary directory');
