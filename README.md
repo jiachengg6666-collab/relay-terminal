@@ -2,69 +2,137 @@
 
 [![CI](https://github.com/jiachengg6666-collab/relay-terminal/actions/workflows/ci.yml/badge.svg)](https://github.com/jiachengg6666-collab/relay-terminal/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Status: Preview](https://img.shields.io/badge/status-preview-orange.svg)](#project-status)
 
-Relay Terminal 是一个基于 Electron、React、TypeScript、xterm.js 和 node-pty 的跨平台 AI 终端。AI 默认关闭；关闭时它就是普通 PTY 终端，不会调用任何模型接口。
+Relay Terminal is a cross-platform terminal with optional AI command assistance. It is built with Electron, React, TypeScript, xterm.js, and node-pty.
 
-开启单个标签页的 AI 后，可以直接输入自然语言或明显无法解析的命令。原输入会在当前提示符逐字消失，模型生成的低/中风险命令会原地回填，等待用户确认后执行。有效 Shell 命令仍按正常终端方式直接执行。
+Chinese documentation: [安装、构建与使用指南](docs/platform-guide.zh-CN.md)
 
-## 功能
+AI is disabled by default. With AI off, Relay Terminal behaves like a regular PTY terminal and makes no model requests. With AI enabled for a tab, natural-language input and failed commands can be converted into shell commands for review before execution.
 
-- Windows PowerShell 7、macOS/Linux Bash 与 Zsh Shell integration
-- 多标签、终端搜索、深浅主题、字号缩放、复制粘贴
-- 每个标签页独立开启 AI 并选择模型配置
-- 自然语言生成命令、未知命令预纠正、失败命令自动分析
-- DeepSeek、通义千问/DashScope、豆包/火山方舟和 OpenAI-compatible 接口
-- 本地风险分级、敏感信息遮蔽、高风险命令二次确认
-- Electron `safeStorage` 加密 API Key，渲染进程不接触密钥
+## Highlights
 
-## 快速开始
+- Real PowerShell, Zsh, and Bash sessions backed by node-pty
+- Multiple tabs, terminal search, themes, font scaling, clipboard support, and command history
+- Per-tab AI enablement and provider selection
+- Natural-language command generation, unknown-command correction, and failed-command analysis
+- DeepSeek, DashScope, Volcengine Ark, and OpenAI-compatible endpoints
+- Local risk classification, output redaction, and explicit confirmation for high-risk commands
+- API key encryption through Electron `safeStorage`
 
-需要 Node.js 22 或更高版本。
+## Platform Support
+
+| Platform | Recommended shell | Support |
+| --- | --- | --- |
+| Windows 10/11 | PowerShell 7 | Supported; Windows PowerShell is used as a fallback |
+| macOS, Intel or Apple Silicon | Zsh | Supported; Bash is also available |
+| Desktop Linux | Bash or Zsh | Supported on common x64 distributions |
+
+CMD and deep WSL integration are not currently supported. Other shells can be used as basic PTY sessions, but command boundaries and exit-code reporting are not guaranteed.
+
+## Install From Source
+
+Relay Terminal is currently distributed as a preview source build. Officially signed and notarized installers are not available yet.
+
+Requirements:
+
+- Node.js 22 or later
+- npm 10 or later
+- Platform build tools when node-pty cannot use a prebuilt binary
 
 ```sh
+git clone https://github.com/jiachengg6666-collab/relay-terminal.git
+cd relay-terminal
 npm ci
 npm run dev
 ```
 
-常用命令：
+To create a standalone application for the current platform:
 
 ```sh
-npm test          # 单元测试
-npm run test:e2e # Electron 端到端测试
-npm run build     # 类型检查并构建
-npm run package   # 生成当前平台的解压版应用
-npm run dist      # 生成当前平台安装包
+npm run package
 ```
 
-Windows、macOS、Linux 的完整安装、运行和打包说明见 [跨平台使用指南](docs/platform-guide.zh-CN.md)。
+The unpacked application is written under `release/`:
 
-## 项目文档
+| Platform | Typical output |
+| --- | --- |
+| Windows | `release/win-unpacked/Relay Terminal.exe` |
+| macOS | `release/mac*/Relay Terminal.app` |
+| Linux | `release/linux-unpacked/` |
 
-- [跨平台使用指南](docs/platform-guide.zh-CN.md)
-- [参与贡献](CONTRIBUTING.md)
-- [安全策略](SECURITY.md)
-- [MIT 许可证](LICENSE)
+See the [installation, build, and usage guide](docs/platform-guide.zh-CN.md) for platform prerequisites, installer generation, and troubleshooting.
 
-## AI 使用方式
+## Use Relay Terminal
 
-1. 打开设置，新增模型配置并填写提供方、接口地址、模型名和原始 API Key。
-2. 测试连接并保存配置。
-3. 在目标终端标签页开启 `AI on`；AI 开关和模型选择只影响当前标签页。
-4. 直接输入命令或自然语言。也可以按 `Ctrl/Cmd+Shift+G` 插入 `/ai ` 前缀。
-5. 检查回填命令、解释和风险等级，确认无误后按 Enter 执行。
+### As a regular terminal
 
-模型生成的命令不会自动执行。高风险命令不会自动回填，必须在提示浮层中手动确认插入。
+Open a tab, select an available shell, and enter commands normally. Up and Down navigate shell history; Backspace edits the current line. AI remains inactive until it is explicitly enabled for that tab.
 
-## 安全边界
+### With AI assistance
 
-- AI 关闭时不缓存 AI 输出、不发起模型请求，并取消该会话中的未完成请求。
-- 仅发送当前 Shell、系统、工作目录、用户意图，或失败命令的有限上下文。
-- 失败输出最多保留最后 200 行或 32 KB，发送前会遮蔽常见密钥、密码、凭据 URL 和私钥。
-- API Key 和模型原始响应不写入应用日志。
-- 风险检测和脱敏属于纵深防护，不能替代人工检查。执行前仍应核对最终命令和模型端点。
+1. Open Settings and add a model profile.
+2. Enter the provider, base URL, model name, and original API key.
+3. Test and save the profile.
+4. Enable `AI on` in the target tab and select the profile.
+5. Enter a command or a natural-language request.
+6. Review the generated command and risk level before pressing Enter.
 
-## 当前边界
+Low- and medium-risk suggestions are inserted into the prompt but are never executed automatically. High-risk suggestions remain in the review popover until the user explicitly inserts them.
 
-首版不支持 CMD、WSL 深度集成、连续对话、多步代理、分屏、会话恢复、配置同步或遥测。其他 Shell 可以作为基础 PTY 使用，但不保证自动获取退出码和失败纠错。
+## Provider Defaults
 
-应用目前未配置代码签名和 macOS 公证。自行构建的安装包只适合开发、测试或内部使用。
+| Provider | Default base URL | Default model |
+| --- | --- | --- |
+| DeepSeek | `https://api.deepseek.com` | `deepseek-chat` |
+| DashScope | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-plus` |
+| Volcengine Ark | `https://ark.cn-beijing.volces.com/api/v3` | Deployment or model ID required |
+| OpenAI-compatible | Provider-defined | Provider-defined |
+
+## Shortcuts
+
+| Action | macOS | Windows/Linux |
+| --- | --- | --- |
+| Insert `/ai ` | `Cmd+Shift+G` | `Ctrl+Shift+G` |
+| Search terminal | `Cmd+Shift+F` | `Ctrl+Shift+F` |
+| Copy selection | `Cmd+Shift+C` | `Ctrl+Shift+C` |
+| Paste | `Cmd+Shift+V` | `Ctrl+Shift+V` |
+| Previous/next command | `Up` / `Down` | `Up` / `Down` |
+
+## Security And Privacy
+
+- AI-off tabs do not issue model requests and cancel in-flight requests when disabled.
+- Model requests contain only limited shell, platform, working-directory, user-input, or failed-command context.
+- Failed output is limited to the last 200 lines or 32 KB and redacted before transmission.
+- API keys and raw model responses are not written to application logs.
+- API keys are encrypted by Windows DPAPI or macOS Keychain through Electron `safeStorage`.
+- Linux persistence requires a Secret Service backend such as GNOME Keyring or KWallet. Relay Terminal refuses plaintext persistence when only `basic_text` storage is available.
+
+Risk detection and redaction are defense-in-depth controls, not a replacement for reviewing commands and model endpoints.
+
+## Project Status
+
+Relay Terminal is a preview release intended for development, evaluation, and internal use. The project does not currently provide code-signed Windows binaries, Apple Developer ID signing or notarization, or signed Linux packages.
+
+The first release does not include split panes, session restoration, configuration sync, telemetry, continuous conversation, or multi-step agents.
+
+## Development
+
+```sh
+npm test
+npm run build
+npm run test:e2e
+npm run smoke:pty:node
+npm run package
+```
+
+Do not commit `node_modules/`, `release/`, application data, terminal history, or API keys.
+
+## Documentation
+
+- [Installation, build, and usage guide](docs/platform-guide.zh-CN.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+- [MIT License](LICENSE)
+
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Security issues should be reported privately according to [SECURITY.md](SECURITY.md), not through a public issue.
