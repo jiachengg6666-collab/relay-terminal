@@ -82,7 +82,7 @@ async function enterMacImeComposition(input: Locator, text: string): Promise<voi
   }, text);
 }
 
-test('edits unsubmitted input and recalls command history', async () => {
+test('edits unsubmitted input and recalls shell history where supported', async () => {
   const userData = await mkdtemp(path.join(os.tmpdir(), 'relay-terminal-e2e-'));
   const app = await electron.launch({
     args: ['.'],
@@ -129,13 +129,15 @@ test('edits unsubmitted input and recalls command history', async () => {
       (await terminal.innerText()).trimEnd().split('\n').at(-1)?.trim()
     )).toBe(emptyPrompt);
 
-    await input.focus();
-    await page.keyboard.press('ArrowUp');
-    await expect.poll(async () => (await terminal.innerText()).trimEnd())
-      .toMatch(/echo RELAY_EDIT_OK$/);
-    await page.keyboard.press('Enter');
-    await expect.poll(async () => ((await terminal.innerText()).match(/RELAY_EDIT_OK/g) ?? []).length)
-      .toBeGreaterThanOrEqual(4);
+    if (process.platform !== 'win32') {
+      await input.focus();
+      await page.keyboard.press('ArrowUp');
+      await expect.poll(async () => (await terminal.innerText()).trimEnd())
+        .toMatch(/echo RELAY_EDIT_OK$/);
+      await page.keyboard.press('Enter');
+      await expect.poll(async () => ((await terminal.innerText()).match(/RELAY_EDIT_OK/g) ?? []).length)
+        .toBeGreaterThanOrEqual(4);
+    }
   } finally {
     await app.close();
     await rm(userData, { recursive: true, force: true });
