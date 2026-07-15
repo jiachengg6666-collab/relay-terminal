@@ -93,6 +93,16 @@ textarea:focus-visible {
 .topbar {
   padding: 0 8px 0 14px;
   gap: 10px;
+  user-select: none;
+}
+
+:root[data-platform='darwin'] .topbar {
+  padding-left: 78px;
+  -webkit-app-region: drag;
+}
+
+:root[data-platform='darwin'] .topbar :is(button, input, select, textarea, a) {
+  -webkit-app-region: no-drag;
 }
 
 .brand-mark {

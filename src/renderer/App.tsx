@@ -84,6 +84,10 @@ export function App() {
   const theme = effectiveTheme(settings?.theme ?? 'dark');
 
   useEffect(() => {
+    document.documentElement.dataset.platform = platformName();
+  }, []);
+
+  useEffect(() => {
     sessionsRef.current = sessions;
   }, [sessions]);
 
