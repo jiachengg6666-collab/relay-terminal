@@ -25,8 +25,4 @@ if (Get-Module -ListAvailable PSReadLine) {
   Set-PSReadLineKeyHandler -Chord Ctrl+g -ScriptBlock {
     [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
   }
-  Set-PSReadLineKeyHandler -Chord UpArrow -Function PreviousHistory
-  Set-PSReadLineKeyHandler -Chord DownArrow -Function NextHistory
-  Set-PSReadLineKeyHandler -Chord Ctrl+p -Function PreviousHistory
-  Set-PSReadLineKeyHandler -Chord Ctrl+n -Function NextHistory
 }

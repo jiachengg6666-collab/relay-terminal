@@ -133,13 +133,6 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
     const inputDisposable = terminal.onData((data) => window.relayTerminal.terminal.write(sessionId, data));
     terminal.attachCustomKeyEventHandler((event) => {
       const commandKey = event.ctrlKey || event.metaKey;
-      if (shell.kind === 'powershell' && event.type === 'keydown' && !commandKey && !event.altKey) {
-        if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-          event.preventDefault();
-          window.relayTerminal.terminal.write(sessionId, event.key === 'ArrowUp' ? '\x10' : '\x0e');
-          return false;
-        }
-      }
       if (commandKey && event.shiftKey && event.code === 'KeyC' && terminal.hasSelection()) {
         void navigator.clipboard.writeText(terminal.getSelection());
         return false;
