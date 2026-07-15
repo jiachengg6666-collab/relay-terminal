@@ -1,0 +1,87 @@
+import { _electron as electron, expect, test } from '@playwright/test';
+import { createServer, type Server } from 'node:http';
+import { mkdtemp, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+
+let server: Server;
+let port: number;
+let requestCount = 0;
+
+test.beforeAll(async () => {
+  server = createServer((request, response) => {
+    if (!request.url?.endsWith('/chat/completions')) {
+      response.writeHead(404).end();
+      return;
+    }
+    let body = '';
+    request.on('data', (chunk) => { body += chunk; });
+    request.on('end', () => {
+      requestCount += 1;
+      const parsed = JSON.parse(body) as { messages: Array<{ content: string }> };
+      const content = parsed.messages.map((message) => message.content).join('\n');
+      const suggestion = content.includes('Connection test')
+        ? { command: 'echo ok', explanation: 'ok' }
+        : content.includes('relay_command_that_does_not_exist')
+          ? { command: 'echo RELAY_CORRECTED', explanation: 'Replaces the unknown command.' }
+          : { command: process.platform === 'win32' ? 'Remove-Item C:\\temp -Recurse -Force' : 'rm -rf /tmp/relay-test', explanation: 'Removes the requested directory.' };
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(suggestion) } }] }));
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  port = (server.address() as { port: number }).port;
+});
+
+test.afterAll(async () => {
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+});
+
+test('creates tabs, configures AI, and replaces semantic or unresolved input before execution', async () => {
+  const userData = await mkdtemp(path.join(os.tmpdir(), 'relay-terminal-e2e-'));
+  const app = await electron.launch({
+    args: ['.'],
+    env: { ...process.env, RELAY_USER_DATA_DIR: userData },
+  });
+  try {
+    const page = await app.firstWindow();
+    await expect(page.getByLabel('Relay Terminal')).toBeVisible();
+
+    await page.getByTitle('New terminal').click();
+    await expect(page.getByRole('tab')).toHaveCount(2);
+    expect(requestCount).toBe(0);
+
+    await page.getByTitle('Settings').click();
+    await page.getByRole('button', { name: 'Add profile' }).click();
+    await page.getByLabel('Name').fill('Mock provider');
+    await page.getByLabel('Provider').selectOption('openai-compatible');
+    await page.getByLabel('Base URL').fill(`http://127.0.0.1:${port}/v1`);
+    await page.getByLabel('Model').fill('mock-model');
+    await page.getByLabel('API key').fill('test-key');
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByText(/Saved\./)).toBeVisible();
+    await page.getByTitle('Close settings').click();
+
+    await page.getByRole('switch').click();
+    await expect(page.getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+    expect(requestCount).toBe(0);
+    await page.locator('.terminal-pane.is-active .xterm-helper-textarea').focus();
+    await page.keyboard.type('/ai remove a temporary directory');
+    await page.keyboard.press('Enter');
+
+    await expect(page.getByText('Command ready')).toBeVisible();
+    await expect(page.getByText('high risk')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Insert' })).toBeVisible();
+    await page.getByTitle('Dismiss').click();
+    await page.locator('.terminal-pane.is-active .xterm-helper-textarea').focus();
+    await page.keyboard.type('relay_command_that_does_not_exist');
+    await page.keyboard.press('Enter');
+    await expect(page.getByText('Replaces the unknown command.')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('.terminal-pane.is-active')).toContainText('RELAY_CORRECTED');
+    await expect(page.locator('.terminal-pane.is-active')).not.toContainText('CommandNotFoundException');
+    expect(requestCount).toBeGreaterThanOrEqual(2);
+  } finally {
+    await app.close();
+    await rm(userData, { recursive: true, force: true });
+  }
+});
