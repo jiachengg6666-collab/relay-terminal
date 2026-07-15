@@ -82,6 +82,14 @@ async function enterMacImeComposition(input: Locator, text: string): Promise<voi
   }, text);
 }
 
+function withoutLocale(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const sanitized = { ...environment };
+  delete sanitized.LC_ALL;
+  delete sanitized.LC_CTYPE;
+  delete sanitized.LANG;
+  return sanitized;
+}
+
 test('edits unsubmitted input and recalls shell history where supported', async () => {
   const userData = await mkdtemp(path.join(os.tmpdir(), 'relay-terminal-e2e-'));
   const app = await electron.launch({
@@ -149,7 +157,7 @@ test('commits macOS Apple Pinyin composition without corruption', async () => {
   const userData = await mkdtemp(path.join(os.tmpdir(), 'relay-terminal-e2e-'));
   const app = await electron.launch({
     args: ['.'],
-    env: { ...process.env, RELAY_USER_DATA_DIR: userData },
+    env: { ...withoutLocale(process.env), RELAY_USER_DATA_DIR: userData },
   });
   try {
     const page = await app.firstWindow();
@@ -160,6 +168,10 @@ test('commits macOS Apple Pinyin composition without corruption', async () => {
 
     await page.keyboard.type('echo RELAY_CJK_');
     await enterMacImeComposition(input, '中文');
+    await expect.poll(async () => (
+      (await terminal.innerText()).trimEnd().split('\n').at(-1)?.trim()
+    )).toMatch(/echo RELAY_CJK_中文$/);
+    await expect(terminal).not.toContainText(/<00[0-9a-f]{2}>/i);
     await page.keyboard.press('Enter');
 
     await expect.poll(async () => (await terminal.innerText()).split('\n').map((line) => line.trim()))
