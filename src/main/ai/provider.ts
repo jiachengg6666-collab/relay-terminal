@@ -7,6 +7,11 @@ import type {
 } from '../../shared/types';
 import { prepareModelText, redactSecrets } from '../security/redaction';
 import { assessCommandRisk } from '../security/risk';
+import type { TerminalContextEntry } from './session-context';
+
+export interface ProviderAiRequest extends AiRequest {
+  context: TerminalContextEntry[];
+}
 
 const responseSchema = z.object({
   command: z.string().min(1).max(16_384),
@@ -14,8 +19,8 @@ const responseSchema = z.object({
 });
 
 export interface ProviderAdapter {
-  generateCommand(request: AiRequest, signal: AbortSignal): Promise<CommandSuggestion>;
-  correctFailure(request: AiRequest, signal: AbortSignal): Promise<CommandSuggestion>;
+  generateCommand(request: ProviderAiRequest, signal: AbortSignal): Promise<CommandSuggestion>;
+  correctFailure(request: ProviderAiRequest, signal: AbortSignal): Promise<CommandSuggestion>;
   testConnection(signal: AbortSignal): Promise<TestConnectionResult>;
   cancel(): void;
 }
@@ -56,25 +61,49 @@ function parseJsonContent(content: string): z.infer<typeof responseSchema> {
   return result.data;
 }
 
-function systemPrompt(request: AiRequest): string {
+function systemPrompt(request: ProviderAiRequest): string {
   return [
     'You generate exactly one shell command for an interactive terminal.',
     `Target shell: ${request.shell}. Platform: ${request.platform}. Current directory: ${redactSecrets(request.cwd)}.`,
     'Return JSON only with exactly two string fields: command and explanation.',
     'Do not use Markdown. Do not include multiple alternatives. Do not execute anything.',
     'Preserve the user language in the explanation. Make the command valid for the target shell.',
+    'Use recent terminal context only when it is relevant to the current request.',
   ].join('\n');
 }
 
-function userPrompt(request: AiRequest): string {
-  if (request.kind === 'generate') return prepareModelText(request.prompt ?? '');
+function recentContext(request: ProviderAiRequest): string {
+  const entries = request.failure
+    ? request.context.filter((entry, index) => index !== request.context.length - 1
+      || entry.command !== request.failure?.command
+      || entry.cwd !== request.failure.cwd
+      || entry.exitCode !== request.failure.exitCode)
+    : request.context;
+  if (entries.length === 0) return '';
+  return [
+    'Recent commands from this terminal tab (temporary context):',
+    ...entries.map((entry, index) => [
+      `[${index + 1}] Directory: ${prepareModelText(entry.cwd)}`,
+      `Command: ${prepareModelText(entry.command)}`,
+      `Exit code: ${entry.exitCode}`,
+      entry.output ? `Output:\n${prepareModelText(entry.output)}` : 'Output: (empty)',
+    ].join('\n')),
+  ].join('\n\n');
+}
+
+function userPrompt(request: ProviderAiRequest): string {
+  const context = recentContext(request);
+  if (request.kind === 'generate') {
+    return [context, 'Current request:', prepareModelText(request.prompt ?? '')].filter(Boolean).join('\n\n');
+  }
   if (!request.failure) throw new Error('Missing failure context.');
   return [
+    context,
     'Correct this failed command with one replacement command.',
     `Command: ${redactSecrets(request.failure.command)}`,
     `Exit code: ${request.failure.exitCode}`,
     `Output:\n${prepareModelText(request.failure.output)}`,
-  ].join('\n\n');
+  ].filter(Boolean).join('\n\n');
 }
 
 export class OpenAiStyleAdapter implements ProviderAdapter {
@@ -88,11 +117,11 @@ export class OpenAiStyleAdapter implements ProviderAdapter {
     this.apiKey = normalizeApiKey(apiKey);
   }
 
-  generateCommand(request: AiRequest, signal: AbortSignal): Promise<CommandSuggestion> {
+  generateCommand(request: ProviderAiRequest, signal: AbortSignal): Promise<CommandSuggestion> {
     return this.requestSuggestion(request, signal);
   }
 
-  correctFailure(request: AiRequest, signal: AbortSignal): Promise<CommandSuggestion> {
+  correctFailure(request: ProviderAiRequest, signal: AbortSignal): Promise<CommandSuggestion> {
     return this.requestSuggestion(request, signal);
   }
 
@@ -109,7 +138,7 @@ export class OpenAiStyleAdapter implements ProviderAdapter {
     this.currentController?.abort();
   }
 
-  private async requestSuggestion(request: AiRequest, signal: AbortSignal): Promise<CommandSuggestion> {
+  private async requestSuggestion(request: ProviderAiRequest, signal: AbortSignal): Promise<CommandSuggestion> {
     const content = await this.chat([
       { role: 'system', content: systemPrompt(request) },
       { role: 'user', content: userPrompt(request) },

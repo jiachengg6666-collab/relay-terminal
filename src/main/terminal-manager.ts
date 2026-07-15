@@ -13,6 +13,7 @@ import type {
 import { limitOutput, stripAnsi } from './security/redaction';
 import { integrationLaunchConfig, ShellIntegrationParser } from './shell-integration';
 import { classifyTerminalInput } from './natural-language';
+import { AiSessionContext, type TerminalContextEntry } from './ai/session-context';
 
 interface TerminalCallbacks {
   onData(event: TerminalDataEvent): void;
@@ -34,6 +35,7 @@ interface SessionState {
   interrupted: boolean;
   inputAnimation?: ReturnType<typeof setTimeout>;
   inputLocked: boolean;
+  aiContext: AiSessionContext;
 }
 
 function processEnvironment(overrides: Record<string, string>): Record<string, string> {
@@ -95,12 +97,14 @@ export class TerminalManager {
       commandRunning: false,
       interrupted: false,
       inputLocked: false,
+      aiContext: new AiSessionContext(),
     };
     this.sessions.set(session.id, state);
 
     terminalPty.onData((data) => this.handlePtyData(state, data));
     terminalPty.onExit(({ exitCode, signal }) => {
       this.callbacks.onExit({ sessionId: session.id, exitCode, signal });
+      state.aiContext.clear();
       this.sessions.delete(session.id);
       this.onSessionDisabled(session.id);
     });
@@ -173,6 +177,7 @@ export class TerminalManager {
     if (!state) return;
     this.cancelInputAnimation(state);
     this.onSessionDisabled(sessionId);
+    state.aiContext.clear();
     state.pty.kill();
     this.sessions.delete(sessionId);
   }
@@ -196,11 +201,16 @@ export class TerminalManager {
     state.currentCommand = '';
     state.commandRunning = false;
     state.interrupted = false;
+    if (!enabled) state.aiContext.clear();
   }
 
   isAiAuthorized(sessionId: string, profileId: string): boolean {
     const session = this.sessions.get(sessionId)?.session;
     return Boolean(session?.aiEnabled && session.providerProfileId === profileId);
+  }
+
+  getAiContext(sessionId: string): TerminalContextEntry[] {
+    return this.sessions.get(sessionId)?.aiContext.snapshot() ?? [];
   }
 
   closeAll(): void {
@@ -248,15 +258,21 @@ export class TerminalManager {
   private finishCommand(state: SessionState, exitCode: number): void {
     if (!state.commandRunning || !state.currentCommand.trim()) return;
     const interrupted = state.interrupted || [130, 143, -1073741510].includes(exitCode);
-    if (state.session.aiEnabled && exitCode !== 0 && !interrupted) {
-      this.callbacks.onCommandFinished({
-        sessionId: state.session.id,
+    if (state.session.aiEnabled && !interrupted) {
+      const entry = {
         command: state.currentCommand,
         cwd: state.session.cwd,
         exitCode,
         output: limitOutput(state.commandOutput),
-        interrupted,
-      });
+      };
+      state.aiContext.append(entry);
+      if (exitCode !== 0) {
+        this.callbacks.onCommandFinished({
+          sessionId: state.session.id,
+          ...entry,
+          interrupted,
+        });
+      }
     }
     state.currentCommand = '';
     state.commandOutput = '';

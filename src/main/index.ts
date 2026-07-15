@@ -40,7 +40,11 @@ async function createWindow(): Promise<void> {
     (sessionId) => aiManager?.cancelSession(sessionId),
     (profileId) => Boolean(settingsStore.getProfile(profileId)?.hasApiKey),
   );
-  aiManager = new AiManager(settingsStore, (sessionId, profileId) => terminalManager?.isAiAuthorized(sessionId, profileId) ?? false);
+  aiManager = new AiManager(
+    settingsStore,
+    (sessionId, profileId) => terminalManager?.isAiAuthorized(sessionId, profileId) ?? false,
+    (sessionId) => terminalManager?.getAiContext(sessionId) ?? [],
+  );
   registerIpc(terminalManager, aiManager, settingsStore, shells);
 
   mainWindow = new BrowserWindow({
