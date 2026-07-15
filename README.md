@@ -1,5 +1,8 @@
 # Relay Terminal
 
+[![CI](https://github.com/jiachengg6666-collab/relay-terminal/actions/workflows/ci.yml/badge.svg)](https://github.com/jiachengg6666-collab/relay-terminal/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 Relay Terminal 是一个基于 Electron、React、TypeScript、xterm.js 和 node-pty 的跨平台 AI 终端。AI 默认关闭；关闭时它就是普通 PTY 终端，不会调用任何模型接口。
 
 开启单个标签页的 AI 后，可以直接输入自然语言或明显无法解析的命令。原输入会在当前提示符逐字消失，模型生成的低/中风险命令会原地回填，等待用户确认后执行。有效 Shell 命令仍按正常终端方式直接执行。
@@ -34,6 +37,13 @@ npm run dist      # 生成当前平台安装包
 ```
 
 Windows、macOS、Linux 的完整安装、运行和打包说明见 [跨平台使用指南](docs/platform-guide.zh-CN.md)。
+
+## 项目文档
+
+- [跨平台使用指南](docs/platform-guide.zh-CN.md)
+- [参与贡献](CONTRIBUTING.md)
+- [安全策略](SECURITY.md)
+- [MIT 许可证](LICENSE)
 
 ## AI 使用方式
 
