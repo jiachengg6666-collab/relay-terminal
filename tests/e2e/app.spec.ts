@@ -63,7 +63,12 @@ test('creates tabs, configures AI, and replaces semantic or unresolved input bef
     await page.getByTitle('Close settings').click();
 
     const aiSwitch = page.getByRole('switch');
-    await expect(aiSwitch).toBeEnabled({ timeout: 20_000 });
+    try {
+      await expect(aiSwitch).toBeEnabled({ timeout: 20_000 });
+    } catch (error) {
+      const terminalText = await page.locator('.terminal-pane.is-active .xterm-rows').innerText().catch(() => 'Terminal output unavailable.');
+      throw new Error(`Terminal did not become ready. Output:\n${terminalText}`, { cause: error });
+    }
     await aiSwitch.click();
     await expect(aiSwitch).toHaveAttribute('aria-checked', 'true');
     expect(requestCount).toBe(0);
