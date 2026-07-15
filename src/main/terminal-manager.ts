@@ -41,7 +41,11 @@ function processEnvironment(overrides: Record<string, string>): Record<string, s
   for (const [key, value] of Object.entries(process.env)) {
     if (typeof value === 'string') environment[key] = value;
   }
-  return { ...environment, ...overrides, TERM: 'xterm-256color', COLORTERM: 'truecolor' };
+  const merged = { ...environment, ...overrides };
+  const hasLocale = [merged.LC_ALL, merged.LC_CTYPE, merged.LANG]
+    .some((value) => Boolean(value?.trim()));
+  if (process.platform === 'darwin' && !hasLocale) merged.LANG = 'en_US.UTF-8';
+  return { ...merged, TERM: 'xterm-256color', COLORTERM: 'truecolor' };
 }
 
 export class TerminalManager {
