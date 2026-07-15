@@ -27,4 +27,6 @@ if (Get-Module -ListAvailable PSReadLine) {
   }
   Set-PSReadLineKeyHandler -Chord UpArrow -Function PreviousHistory
   Set-PSReadLineKeyHandler -Chord DownArrow -Function NextHistory
+  Set-PSReadLineKeyHandler -Chord Ctrl+p -Function PreviousHistory
+  Set-PSReadLineKeyHandler -Chord Ctrl+n -Function NextHistory
 }
