@@ -37,11 +37,11 @@
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
-    "electron": "^36.0.0",
+    "electron": "^43.1.1",
     "electron-builder": "^26.0.12",
     "typescript": "^5.7.2",
     "vite": "^6.0.7",
-    "vitest": "^2.1.8",
+    "vitest": "^4.1.10",
     "wait-on": "^8.0.1"
   },
   "build": {
