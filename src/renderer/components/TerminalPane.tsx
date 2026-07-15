@@ -103,6 +103,21 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
     fitRef.current = fit;
     searchRef.current = search;
 
+    const container = containerRef.current!;
+    let isComposing = false;
+    const handleCompositionStart = () => { isComposing = true; };
+    const handleCompositionEnd = () => { isComposing = false; };
+    const handleMacImeKeyDown = (event: KeyboardEvent) => {
+      if (!navigator.userAgent.includes('Macintosh') || event.keyCode !== 229 || event.isComposing || isComposing) return;
+
+      // Apple Pinyin can emit insertText before a non-composing keyCode 229 keydown.
+      // Let xterm handle the input event once, but block its delayed textarea diff.
+      event.stopImmediatePropagation();
+    };
+    container.addEventListener('compositionstart', handleCompositionStart, true);
+    container.addEventListener('compositionend', handleCompositionEnd, true);
+    container.addEventListener('keydown', handleMacImeKeyDown, true);
+
     const unsubData = window.relayTerminal.terminal.onData((event) => {
       if (event.sessionId === sessionId) terminal.write(event.data);
     });
@@ -154,6 +169,9 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
       disposed = true;
       readyRef.current = false;
       observer.disconnect();
+      container.removeEventListener('compositionstart', handleCompositionStart, true);
+      container.removeEventListener('compositionend', handleCompositionEnd, true);
+      container.removeEventListener('keydown', handleMacImeKeyDown, true);
       inputDisposable.dispose();
       unsubData();
       unsubExit();

@@ -9,6 +9,15 @@ __relay_clear_line() {
 }
 zle -N __relay_clear_line
 bindkey '^G' __relay_clear_line
+
+__relay_backward_delete_char() {
+  if (( CURSOR > 0 )); then
+    zle backward-delete-char
+  fi
+}
+zle -N __relay_backward_delete_char
+bindkey '^?' __relay_backward_delete_char
+bindkey '^H' __relay_backward_delete_char
 bindkey '^[[A' up-line-or-history
 bindkey '^[[B' down-line-or-history
 bindkey '^[OA' up-line-or-history
