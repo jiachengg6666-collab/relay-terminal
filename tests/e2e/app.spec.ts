@@ -109,7 +109,9 @@ test('edits unsubmitted input and recalls command history', async () => {
     }
     await expect(page.getByRole('switch')).toBeEnabled({ timeout: 20_000 });
     await input.focus();
-    await expect.poll(async () => (await terminal.innerText()).trim()).not.toBe('');
+    await expect.poll(async () => (
+      (await terminal.innerText()).trimEnd().split('\n').at(-1)?.trim()
+    )).toMatch(/[>$%#]$/);
 
     const promptBeforeBackspace = await terminal.innerText();
     const emptyPrompt = promptBeforeBackspace.trimEnd().split('\n').at(-1)?.trim();
