@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AiRequest, ProviderKind, ProviderProfile } from '../../shared/types';
-import { normalizeApiKey, OpenAiStyleAdapter, providerDefaults } from './provider';
+import type { ProviderKind, ProviderProfile } from '../../shared/types';
+import { normalizeApiKey, OpenAiStyleAdapter, providerDefaults, type ProviderAiRequest } from './provider';
 
-const baseRequest: AiRequest = {
+const baseRequest: ProviderAiRequest = {
   requestId: 'request-1',
   sessionId: 'session-1',
   profileId: 'profile-1',
@@ -11,6 +11,7 @@ const baseRequest: AiRequest = {
   cwd: '/work',
   platform: 'linux',
   prompt: 'list files',
+  context: [],
 };
 
 function profile(provider: ProviderKind): ProviderProfile {
@@ -56,6 +57,32 @@ describe('provider adapters', () => {
     }), { status: 200 })));
     const adapter = new OpenAiStyleAdapter(profile('openai-compatible'), 'secret-key');
     await expect(adapter.generateCommand(baseRequest, new AbortController().signal)).rejects.toThrow(/structured command suggestion/i);
+  });
+
+  it('sends only redacted temporary context from the current terminal session', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      choices: [{ message: { content: '{"command":"Get-ChildItem","explanation":"Continues in the same directory."}' } }],
+    }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const adapter = new OpenAiStyleAdapter(profile('openai-compatible'), 'secret-key');
+    await adapter.generateCommand({
+      ...baseRequest,
+      shell: 'powershell',
+      platform: 'win32',
+      context: [{
+        command: 'Set-Location E:\\work',
+        cwd: 'E:\\work',
+        exitCode: 0,
+        output: 'Authorization: Bearer abcdefghijklmnopqrstuvwxyz',
+      }],
+    }, new AbortController().signal);
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body) as { messages: Array<{ content: string }> };
+    const prompt = body.messages.map((message) => message.content).join('\n');
+    expect(prompt).toContain('Set-Location E:\\work');
+    expect(prompt).toContain('temporary context');
+    expect(prompt).not.toContain('abcdefghijklmnopqrstuvwxyz');
+    expect(prompt).toContain('[REDACTED]');
   });
 
   it('cancels an in-flight request', async () => {

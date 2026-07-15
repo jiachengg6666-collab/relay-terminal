@@ -7,6 +7,7 @@ import path from 'node:path';
 let server: Server;
 let port: number;
 let requestCount = 0;
+const requestBodies: string[] = [];
 
 test.beforeAll(async () => {
   server = createServer((request, response) => {
@@ -20,6 +21,7 @@ test.beforeAll(async () => {
       requestCount += 1;
       const parsed = JSON.parse(body) as { messages: Array<{ content: string }> };
       const content = parsed.messages.map((message) => message.content).join('\n');
+      requestBodies.push(content);
       const suggestion = content.includes('Connection test')
         ? { command: 'echo ok', explanation: 'ok' }
         : content.includes('relay_command_that_does_not_exist')
@@ -128,6 +130,9 @@ test('edits unsubmitted input and recalls shell history where supported', async 
     await expect.poll(async () => terminal.innerText()).toBe(promptBeforeBackspace);
 
     await page.keyboard.type('echo RELAY_EDIT_BROKEN');
+    await expect.poll(async () => (
+      (await terminal.innerText()).trimEnd().split('\n').at(-1)?.trim()
+    ), { timeout: 2_000 }).toMatch(/echo RELAY_EDIT_BROKEN$/);
     for (let index = 0; index < 'BROKEN'.length; index += 1) await page.keyboard.press('Backspace');
     await page.keyboard.type('OK');
     await page.keyboard.press('Enter');
@@ -137,14 +142,26 @@ test('edits unsubmitted input and recalls shell history where supported', async 
       (await terminal.innerText()).trimEnd().split('\n').at(-1)?.trim()
     )).toBe(emptyPrompt);
 
-    if (process.platform !== 'win32') {
-      await input.focus();
+    await input.focus();
+    await page.keyboard.press('ArrowUp');
+    await expect.poll(async () => (await terminal.innerText()).trimEnd())
+      .toMatch(/echo RELAY_EDIT_OK$/);
+    await page.keyboard.press('Enter');
+    await expect.poll(async () => ((await terminal.innerText()).match(/RELAY_EDIT_OK/g) ?? []).length)
+      .toBeGreaterThanOrEqual(4);
+
+    if (process.platform === 'win32') {
+      await page.getByTitle('New terminal').click();
+      const nextTerminal = page.locator('.terminal-pane.is-active');
+      const nextInput = nextTerminal.locator('.xterm-helper-textarea');
+      await expect(page.getByRole('switch')).toBeEnabled({ timeout: 20_000 });
+      await nextInput.focus();
+      await expect.poll(async () => (
+        (await nextTerminal.innerText()).trimEnd().split('\n').at(-1)?.trim()
+      )).toMatch(/[>$%#]$/);
       await page.keyboard.press('ArrowUp');
-      await expect.poll(async () => (await terminal.innerText()).trimEnd())
+      await expect.poll(async () => (await nextTerminal.innerText()).trimEnd())
         .toMatch(/echo RELAY_EDIT_OK$/);
-      await page.keyboard.press('Enter');
-      await expect.poll(async () => ((await terminal.innerText()).match(/RELAY_EDIT_OK/g) ?? []).length)
-        .toBeGreaterThanOrEqual(4);
     }
   } finally {
     await app.close();
@@ -245,11 +262,23 @@ test('creates tabs, configures AI, and replaces semantic or unresolved input bef
     await aiSwitch.click();
     await expect(aiSwitch).toHaveAttribute('aria-checked', 'true');
     expect(requestCount).toBe(0);
-    await page.locator('.terminal-pane.is-active .xterm-helper-textarea').focus();
+    const activeTerminal = page.locator('.terminal-pane.is-active');
+    await activeTerminal.locator('.xterm-helper-textarea').focus();
+    await page.keyboard.type('echo RELAY_CONTEXT_FROM_THIS_TAB');
+    await page.keyboard.press('Enter');
+    await expect.poll(async () => ((await activeTerminal.innerText()).match(/RELAY_CONTEXT_FROM_THIS_TAB/g) ?? []).length)
+      .toBeGreaterThanOrEqual(2);
+    await expect.poll(async () => (
+      (await activeTerminal.innerText()).trimEnd().split('\n').at(-1)?.trim()
+    )).toMatch(/[>$%#]$/);
+
+    const contextRequestStart = requestBodies.length;
     await page.keyboard.type('/ai remove a temporary directory');
     await page.keyboard.press('Enter');
 
     await expect(page.getByText('Command ready')).toBeVisible();
+    expect(requestBodies.slice(contextRequestStart).at(-1)).toContain('echo RELAY_CONTEXT_FROM_THIS_TAB');
+    expect(requestBodies.slice(contextRequestStart).at(-1)).toContain('temporary context');
     await expect(page.getByText('high risk')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Insert' })).toBeVisible();
     await page.getByTitle('Dismiss').click();
