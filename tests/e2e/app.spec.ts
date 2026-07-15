@@ -123,8 +123,9 @@ test('edits unsubmitted input and recalls command history', async () => {
     await page.keyboard.press('Enter');
     await expect.poll(async () => ((await terminal.innerText()).match(/RELAY_EDIT_OK/g) ?? []).length)
       .toBeGreaterThanOrEqual(2);
-    await expect.poll(async () => (await terminal.innerText()).split('\n').map((line) => line.trim()))
-      .toContain(emptyPrompt);
+    await expect.poll(async () => (
+      (await terminal.innerText()).trimEnd().split('\n').at(-1)?.trim()
+    )).toBe(emptyPrompt);
 
     await page.keyboard.press('ArrowUp');
     await expect.poll(async () => (await terminal.innerText()).trimEnd())
