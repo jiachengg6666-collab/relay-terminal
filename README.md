@@ -69,6 +69,8 @@ See the [installation, build, and usage guide](docs/platform-guide.zh-CN.md) for
 
 Open a tab, select an available shell, and enter commands normally. Up and Down navigate shell history; Backspace edits the current line. AI remains inactive until it is explicitly enabled for that tab.
 
+Command history remains owned by the selected shell. PowerShell uses its normal PSReadLine history file, while Bash and Zsh keep their native history behavior. Closing a Relay Terminal tab does not delete shell command history.
+
 ### With AI assistance
 
 1. Open Settings and add a model profile.
@@ -79,6 +81,8 @@ Open a tab, select an available shell, and enter commands normally. Up and Down 
 6. Review the generated command and risk level before pressing Enter.
 
 Low- and medium-risk suggestions are inserted into the prompt but are never executed automatically. High-risk suggestions remain in the review popover until the user explicitly inserts them.
+
+While AI is enabled, each tab keeps a small temporary context of its recent commands, working directories, exit codes, and limited output. This context helps the model understand follow-up intent. It stays in main-process memory only, is isolated between tabs, and is cleared when AI is disabled, the tab closes, or the shell exits.
 
 ## Provider Defaults
 
@@ -102,7 +106,9 @@ Low- and medium-risk suggestions are inserted into the prompt but are never exec
 ## Security And Privacy
 
 - AI-off tabs do not issue model requests and cancel in-flight requests when disabled.
-- Model requests contain only limited shell, platform, working-directory, user-input, or failed-command context.
+- Model requests contain only limited shell, platform, working-directory, user-input, failed-command, or current-tab command context.
+- Temporary AI context is capped at 12 recent entries, 200 lines, and 32 KB; it is redacted before retention and never written to disk.
+- Disabling AI or closing a tab clears its temporary AI context without deleting the shell's native command history.
 - Failed output is limited to the last 200 lines or 32 KB and redacted before transmission.
 - API keys and raw model responses are not written to application logs.
 - API keys are encrypted by Windows DPAPI or macOS Keychain through Electron `safeStorage`.

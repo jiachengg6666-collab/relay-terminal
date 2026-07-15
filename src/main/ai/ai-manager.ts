@@ -1,6 +1,7 @@
 import type { AiRequest, CommandSuggestion, ProviderProfileInput, TestConnectionResult } from '../../shared/types';
 import type { SettingsStore } from '../settings-store';
 import { OpenAiStyleAdapter } from './provider';
+import type { TerminalContextEntry } from './session-context';
 
 interface ActiveRequest {
   sessionId: string;
@@ -14,6 +15,7 @@ export class AiManager {
   constructor(
     private readonly settings: SettingsStore,
     private readonly isSessionAuthorized: (sessionId: string, profileId: string) => boolean,
+    private readonly getSessionContext: (sessionId: string) => TerminalContextEntry[] = () => [],
   ) {}
 
   async request(request: AiRequest): Promise<CommandSuggestion> {
@@ -27,11 +29,12 @@ export class AiManager {
 
     const controller = new AbortController();
     const adapter = new OpenAiStyleAdapter(profile, apiKey);
+    const providerRequest = { ...request, context: this.getSessionContext(request.sessionId) };
     this.requests.set(request.requestId, { sessionId: request.sessionId, controller, adapter });
     try {
       return request.kind === 'generate'
-        ? await adapter.generateCommand(request, controller.signal)
-        : await adapter.correctFailure(request, controller.signal);
+        ? await adapter.generateCommand(providerRequest, controller.signal)
+        : await adapter.correctFailure(providerRequest, controller.signal);
     } finally {
       this.requests.delete(request.requestId);
     }

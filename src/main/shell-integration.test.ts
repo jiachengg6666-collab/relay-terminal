@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ShellIntegrationParser, shellKindFromPath } from './shell-integration';
@@ -29,6 +30,13 @@ describe('shell integration parser', () => {
     expect(shellKindFromPath('C:\\Program Files\\PowerShell\\7\\pwsh.exe')).toBe('powershell');
     expect(shellKindFromPath('/bin/bash')).toBe('bash');
     expect(shellKindFromPath('/bin/fish')).toBe('other');
+  });
+
+  it('captures PowerShell commands without replacing its persistent history handler', () => {
+    const script = readFileSync(resolve('resources/shell/relay.ps1'), 'utf8');
+    expect(script).toContain('GetBufferState');
+    expect(script).toContain('AcceptLine');
+    expect(script).not.toContain('AddToHistoryHandler');
   });
 
   const macOSIt = process.platform === 'darwin' ? it : it.skip;

@@ -23,6 +23,9 @@ jobs:
       - run: npm audit --audit-level=high
       - run: npm test
       - run: npm run build
+      - name: PowerShell input and history smoke test
+        if: runner.os == 'Windows'
+        run: npm run smoke:shell-integration
       - name: Electron end-to-end tests
         if: runner.os != 'Linux'
         run: npm run test:e2e

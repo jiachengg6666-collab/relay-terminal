@@ -11,16 +11,15 @@ function global:prompt {
 
 if (Get-Module -ListAvailable PSReadLine) {
   Import-Module PSReadLine -ErrorAction SilentlyContinue
-  if ((Get-Command Set-PSReadLineOption).Parameters.ContainsKey('AddToHistoryHandler')) {
-    $script:RelayOriginalHistoryHandler = (Get-PSReadLineOption).AddToHistoryHandler
-    Set-PSReadLineOption -AddToHistoryHandler {
-      param($line)
-      $shouldAdd = if ($null -ne $script:RelayOriginalHistoryHandler) { & $script:RelayOriginalHistoryHandler $line } else { $true }
-      if (-not $shouldAdd) { return $false }
+  Set-PSReadLineKeyHandler -Chord Enter -ScriptBlock {
+    $line = $null
+    $cursor = $null
+    [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
+    if (-not [string]::IsNullOrWhiteSpace($line)) {
       $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($line))
       [Console]::Write("$([char]27)]633;B;$encoded$([char]7)")
-      return $true
     }
+    [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
   }
   Set-PSReadLineKeyHandler -Chord Ctrl+g -ScriptBlock {
     [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
