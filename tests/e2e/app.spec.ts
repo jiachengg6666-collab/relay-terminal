@@ -37,6 +37,51 @@ test.afterAll(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
+test('edits unsubmitted input and recalls command history', async () => {
+  const userData = await mkdtemp(path.join(os.tmpdir(), 'relay-terminal-e2e-'));
+  const app = await electron.launch({
+    args: ['.'],
+    env: { ...process.env, RELAY_USER_DATA_DIR: userData },
+  });
+  try {
+    const page = await app.firstWindow();
+    const terminal = page.locator('.terminal-pane.is-active');
+    const input = terminal.locator('.xterm-helper-textarea');
+    if (process.platform === 'darwin') {
+      const topbarStyle = await page.locator('.topbar').evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          appRegion: style.getPropertyValue('-webkit-app-region'),
+          paddingLeft: Number.parseFloat(style.paddingLeft),
+        };
+      });
+      const tabAppRegion = await page.getByRole('tab').first().evaluate((element) => (
+        getComputedStyle(element).getPropertyValue('-webkit-app-region')
+      ));
+      expect(topbarStyle.appRegion).toBe('drag');
+      expect(topbarStyle.paddingLeft).toBeGreaterThanOrEqual(78);
+      expect(tabAppRegion).toBe('no-drag');
+    }
+    await expect(page.getByRole('switch')).toBeEnabled({ timeout: 20_000 });
+    await input.focus();
+
+    await page.keyboard.type('echo RELAY_EDIT_BROKEN');
+    for (let index = 0; index < 'BROKEN'.length; index += 1) await page.keyboard.press('Backspace');
+    await page.keyboard.type('OK');
+    await page.keyboard.press('Enter');
+    await expect.poll(async () => ((await terminal.innerText()).match(/RELAY_EDIT_OK/g) ?? []).length)
+      .toBeGreaterThanOrEqual(2);
+
+    await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('Enter');
+    await expect.poll(async () => ((await terminal.innerText()).match(/RELAY_EDIT_OK/g) ?? []).length)
+      .toBeGreaterThanOrEqual(4);
+  } finally {
+    await app.close();
+    await rm(userData, { recursive: true, force: true });
+  }
+});
+
 test('creates tabs, configures AI, and replaces semantic or unresolved input before execution', async () => {
   const userData = await mkdtemp(path.join(os.tmpdir(), 'relay-terminal-e2e-'));
   const app = await electron.launch({
