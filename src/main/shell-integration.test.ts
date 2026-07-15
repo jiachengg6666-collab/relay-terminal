@@ -1,3 +1,5 @@
+import { spawnSync } from 'node:child_process';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ShellIntegrationParser, shellKindFromPath } from './shell-integration';
 
@@ -27,5 +29,28 @@ describe('shell integration parser', () => {
     expect(shellKindFromPath('C:\\Program Files\\PowerShell\\7\\pwsh.exe')).toBe('powershell');
     expect(shellKindFromPath('/bin/bash')).toBe('bash');
     expect(shellKindFromPath('/bin/fish')).toBe('other');
+  });
+
+  const macOSIt = process.platform === 'darwin' ? it : it.skip;
+  macOSIt('runs the Zsh precmd hook without assigning to read-only parameters', () => {
+    const result = spawnSync('/bin/zsh', [
+      '-d',
+      '-i',
+      '-c',
+      "false; __relay_precmd; bindkey '^[[A'; bindkey '^[[B'",
+    ], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        HOME: '/tmp/relay-terminal-test-home',
+        ZDOTDIR: resolve('resources/shell/zsh'),
+      },
+    });
+
+    expect(result.stderr).not.toContain('read-only variable');
+    expect(result.stdout).toContain(marker('D', '1'));
+    expect(result.stdout).toContain('up-line-or-history');
+    expect(result.stdout).toContain('down-line-or-history');
+    expect(result.status).toBe(0);
   });
 });
