@@ -37,7 +37,7 @@ describe('shell integration parser', () => {
       '-d',
       '-i',
       '-c',
-      "false; __relay_precmd; bindkey '^[[A'; bindkey '^[[B'",
+      "false; __relay_precmd; bindkey '^[[A'; bindkey '^[[B'; bindkey '^?'; bindkey '^H'",
     ], {
       encoding: 'utf8',
       env: {
@@ -51,6 +51,7 @@ describe('shell integration parser', () => {
     expect(result.stdout).toContain(marker('D', '1'));
     expect(result.stdout).toContain('up-line-or-history');
     expect(result.stdout).toContain('down-line-or-history');
+    expect(result.stdout.match(/__relay_backward_delete_char/g)).toHaveLength(2);
     expect(result.status).toBe(0);
   });
 });

@@ -1,4 +1,4 @@
-import { _electron as electron, expect, test } from '@playwright/test';
+import { _electron as electron, expect, test, type Locator } from '@playwright/test';
 import { createServer, type Server } from 'node:http';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
@@ -37,6 +37,51 @@ test.afterAll(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
+async function enterMacImePassthroughPair(input: Locator): Promise<void> {
+  await input.evaluate(async (textarea, [first, second]) => {
+    if (!(textarea instanceof HTMLTextAreaElement)) throw new Error('Expected the xterm helper textarea.');
+    const keyDown = (key: string) => {
+      const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'keyCode', { get: () => 229 });
+      textarea.dispatchEvent(event);
+    };
+    const keyUp = (key: string, keyCode: number) => {
+      const event = new KeyboardEvent('keyup', { key, bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'keyCode', { get: () => keyCode });
+      textarea.dispatchEvent(event);
+    };
+    const insert = (value: string) => {
+      textarea.value += value;
+      textarea.dispatchEvent(new InputEvent('input', {
+        inputType: 'insertText',
+        data: value,
+        composed: true,
+        bubbles: true,
+      }));
+    };
+
+    insert(first);
+    keyDown(first);
+    keyUp(first, first.toUpperCase().charCodeAt(0));
+    insert(second);
+    keyDown(second);
+    keyUp(second, second.toUpperCase().charCodeAt(0));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }, ['j', 'k']);
+}
+
+async function enterMacImeComposition(input: Locator, text: string): Promise<void> {
+  await input.evaluate(async (textarea, value) => {
+    if (!(textarea instanceof HTMLTextAreaElement)) throw new Error('Expected the xterm helper textarea.');
+    textarea.dispatchEvent(new CompositionEvent('compositionstart', { data: '', bubbles: true }));
+    textarea.value += value;
+    textarea.dispatchEvent(new CompositionEvent('compositionupdate', { data: value, bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    textarea.dispatchEvent(new CompositionEvent('compositionend', { data: value, bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }, text);
+}
+
 test('edits unsubmitted input and recalls command history', async () => {
   const userData = await mkdtemp(path.join(os.tmpdir(), 'relay-terminal-e2e-'));
   const app = await electron.launch({
@@ -64,6 +109,13 @@ test('edits unsubmitted input and recalls command history', async () => {
     }
     await expect(page.getByRole('switch')).toBeEnabled({ timeout: 20_000 });
     await input.focus();
+    await expect.poll(async () => (await terminal.innerText()).trim()).not.toBe('');
+
+    const promptBeforeBackspace = await terminal.innerText();
+    const emptyPrompt = promptBeforeBackspace.trimEnd().split('\n').at(-1)?.trim();
+    if (!emptyPrompt) throw new Error('The shell prompt did not render.');
+    await page.keyboard.press('Backspace');
+    await expect.poll(async () => terminal.innerText()).toBe(promptBeforeBackspace);
 
     await page.keyboard.type('echo RELAY_EDIT_BROKEN');
     for (let index = 0; index < 'BROKEN'.length; index += 1) await page.keyboard.press('Backspace');
@@ -71,11 +123,69 @@ test('edits unsubmitted input and recalls command history', async () => {
     await page.keyboard.press('Enter');
     await expect.poll(async () => ((await terminal.innerText()).match(/RELAY_EDIT_OK/g) ?? []).length)
       .toBeGreaterThanOrEqual(2);
+    await expect.poll(async () => (await terminal.innerText()).split('\n').map((line) => line.trim()))
+      .toContain(emptyPrompt);
 
     await page.keyboard.press('ArrowUp');
+    await expect.poll(async () => (await terminal.innerText()).trimEnd())
+      .toMatch(/echo RELAY_EDIT_OK$/);
     await page.keyboard.press('Enter');
     await expect.poll(async () => ((await terminal.innerText()).match(/RELAY_EDIT_OK/g) ?? []).length)
       .toBeGreaterThanOrEqual(4);
+  } finally {
+    await app.close();
+    await rm(userData, { recursive: true, force: true });
+  }
+});
+
+test('commits macOS Apple Pinyin composition without corruption', async () => {
+  test.skip(process.platform !== 'darwin', 'Apple Pinyin composition is macOS-specific.');
+  const userData = await mkdtemp(path.join(os.tmpdir(), 'relay-terminal-e2e-'));
+  const app = await electron.launch({
+    args: ['.'],
+    env: { ...process.env, RELAY_USER_DATA_DIR: userData },
+  });
+  try {
+    const page = await app.firstWindow();
+    const terminal = page.locator('.terminal-pane.is-active');
+    const input = terminal.locator('.xterm-helper-textarea');
+    await expect(page.getByRole('switch')).toBeEnabled({ timeout: 20_000 });
+    await input.focus();
+
+    await page.keyboard.type('echo RELAY_CJK_');
+    await enterMacImeComposition(input, '中文');
+    await page.keyboard.press('Enter');
+
+    await expect.poll(async () => (await terminal.innerText()).split('\n').map((line) => line.trim()))
+      .toContain('RELAY_CJK_中文');
+    await expect(terminal).not.toContainText('RELAY_CJK_中文中文');
+  } finally {
+    await app.close();
+    await rm(userData, { recursive: true, force: true });
+  }
+});
+
+test('does not duplicate macOS Apple Pinyin passthrough input', async () => {
+  test.skip(process.platform !== 'darwin', 'Apple Pinyin event ordering is macOS-specific.');
+  const userData = await mkdtemp(path.join(os.tmpdir(), 'relay-terminal-e2e-'));
+  const app = await electron.launch({
+    args: ['.'],
+    env: { ...process.env, RELAY_USER_DATA_DIR: userData },
+  });
+  try {
+    const page = await app.firstWindow();
+    const terminal = page.locator('.terminal-pane.is-active');
+    const input = terminal.locator('.xterm-helper-textarea');
+    await expect(page.getByRole('switch')).toBeEnabled({ timeout: 20_000 });
+    await input.focus();
+
+    await page.keyboard.type('echo RELAY_IME_');
+    await enterMacImePassthroughPair(input);
+    await page.keyboard.press('Enter');
+
+    await expect.poll(async () => (await terminal.innerText()).split('\n').map((line) => line.trim()))
+      .toContain('RELAY_IME_jk');
+    await expect(terminal).not.toContainText('RELAY_IME_jkk');
   } finally {
     await app.close();
     await rm(userData, { recursive: true, force: true });
