@@ -16,6 +16,7 @@ export class AiManager {
     private readonly settings: SettingsStore,
     private readonly isSessionAuthorized: (sessionId: string, profileId: string) => boolean,
     private readonly getSessionContext: (sessionId: string) => TerminalContextEntry[] = () => [],
+    private readonly appendSessionContext: (sessionId: string, entry: TerminalContextEntry) => void = () => undefined,
   ) {}
 
   async request(request: AiRequest): Promise<CommandSuggestion> {
@@ -32,9 +33,21 @@ export class AiManager {
     const providerRequest = { ...request, context: this.getSessionContext(request.sessionId) };
     this.requests.set(request.requestId, { sessionId: request.sessionId, controller, adapter });
     try {
-      return request.kind === 'generate'
+      const suggestion = request.kind === 'generate'
         ? await adapter.generateCommand(providerRequest, controller.signal)
         : await adapter.correctFailure(providerRequest, controller.signal);
+      if (this.isSessionAuthorized(request.sessionId, request.profileId)) {
+        this.appendSessionContext(request.sessionId, {
+          type: 'ai-exchange',
+          cwd: request.cwd,
+          userRequest: request.kind === 'generate'
+            ? request.prompt ?? ''
+            : `Correct failed command: ${request.failure?.command ?? ''}`,
+          suggestedCommand: suggestion.command,
+          explanation: suggestion.explanation,
+        });
+      }
+      return suggestion;
     } finally {
       this.requests.delete(request.requestId);
     }

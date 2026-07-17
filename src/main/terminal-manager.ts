@@ -189,6 +189,7 @@ export class TerminalManager {
     }
     if (state.session.aiEnabled && (!enabled || state.session.providerProfileId !== profileId)) {
       this.onSessionDisabled(sessionId);
+      state.aiContext.clear();
     }
     if (!enabled && state.inputLocked) {
       this.cancelInputAnimation(state);
@@ -211,6 +212,11 @@ export class TerminalManager {
 
   getAiContext(sessionId: string): TerminalContextEntry[] {
     return this.sessions.get(sessionId)?.aiContext.snapshot() ?? [];
+  }
+
+  appendAiContext(sessionId: string, entry: TerminalContextEntry): void {
+    const state = this.sessions.get(sessionId);
+    if (state?.session.aiEnabled) state.aiContext.append(entry);
   }
 
   closeAll(): void {
@@ -260,6 +266,7 @@ export class TerminalManager {
     const interrupted = state.interrupted || [130, 143, -1073741510].includes(exitCode);
     if (state.session.aiEnabled && !interrupted) {
       const entry = {
+        type: 'command' as const,
         command: state.currentCommand,
         cwd: state.session.cwd,
         exitCode,

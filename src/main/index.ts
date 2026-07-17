@@ -44,6 +44,7 @@ async function createWindow(): Promise<void> {
     settingsStore,
     (sessionId, profileId) => terminalManager?.isAiAuthorized(sessionId, profileId) ?? false,
     (sessionId) => terminalManager?.getAiContext(sessionId) ?? [],
+    (sessionId, entry) => terminalManager?.appendAiContext(sessionId, entry),
   );
   registerIpc(terminalManager, aiManager, settingsStore, shells);
 

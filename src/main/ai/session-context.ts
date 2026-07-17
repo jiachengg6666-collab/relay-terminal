@@ -1,11 +1,22 @@
 import { limitOutput, prepareModelText } from '../security/redaction';
 
-export interface TerminalContextEntry {
+export interface TerminalCommandContextEntry {
+  type: 'command';
   command: string;
   cwd: string;
   exitCode: number;
   output: string;
 }
+
+export interface AiExchangeContextEntry {
+  type: 'ai-exchange';
+  cwd: string;
+  userRequest: string;
+  suggestedCommand: string;
+  explanation: string;
+}
+
+export type TerminalContextEntry = TerminalCommandContextEntry | AiExchangeContextEntry;
 
 const MAX_CONTEXT_ENTRIES = 12;
 const MAX_CONTEXT_LINES = 200;
@@ -14,21 +25,39 @@ const MAX_ENTRY_OUTPUT_LINES = 80;
 const MAX_ENTRY_OUTPUT_BYTES = 8 * 1024;
 
 function entryBytes(entry: TerminalContextEntry): number {
-  return Buffer.byteLength(`${entry.command}\n${entry.cwd}\n${entry.exitCode}\n${entry.output}`, 'utf8');
+  return Buffer.byteLength(JSON.stringify(entry), 'utf8');
 }
 
 function entryLines(entry: TerminalContextEntry): number {
-  return 3 + entry.output.split('\n').length;
+  const values = entry.type === 'command'
+    ? [entry.command, entry.cwd, entry.output]
+    : [entry.cwd, entry.userRequest, entry.suggestedCommand, entry.explanation];
+  return values.reduce((total, value) => total + value.split('\n').length, 0);
 }
 
 function sanitizeEntry(entry: TerminalContextEntry): TerminalContextEntry | undefined {
-  const command = prepareModelText(entry.command).trim();
-  if (!command) return undefined;
+  const cwd = limitOutput(prepareModelText(entry.cwd).trim(), 4, 2 * 1024);
+  if (entry.type === 'command') {
+    const command = prepareModelText(entry.command).trim();
+    if (!command) return undefined;
+    return {
+      type: 'command',
+      command: limitOutput(command, 20, 4 * 1024),
+      cwd,
+      exitCode: entry.exitCode,
+      output: limitOutput(prepareModelText(entry.output), MAX_ENTRY_OUTPUT_LINES, MAX_ENTRY_OUTPUT_BYTES),
+    };
+  }
+
+  const userRequest = limitOutput(prepareModelText(entry.userRequest).trim(), 20, 4 * 1024);
+  const suggestedCommand = limitOutput(prepareModelText(entry.suggestedCommand).trim(), 20, 4 * 1024);
+  if (!userRequest || !suggestedCommand) return undefined;
   return {
-    command: limitOutput(command, 20, 4 * 1024),
-    cwd: limitOutput(prepareModelText(entry.cwd).trim(), 4, 2 * 1024),
-    exitCode: entry.exitCode,
-    output: limitOutput(prepareModelText(entry.output), MAX_ENTRY_OUTPUT_LINES, MAX_ENTRY_OUTPUT_BYTES),
+    type: 'ai-exchange',
+    cwd,
+    userRequest,
+    suggestedCommand,
+    explanation: limitOutput(prepareModelText(entry.explanation).trim(), 20, 4 * 1024),
   };
 }
 
