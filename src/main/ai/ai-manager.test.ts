@@ -45,9 +45,10 @@ describe('AI session isolation', () => {
     }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
     const getSessionContext = vi.fn().mockImplementation((sessionId: string) => sessionId === 'session-1'
-      ? [{ command: 'Set-Location E:\\work', cwd: 'E:\\work', exitCode: 0, output: '' }]
-      : [{ command: 'echo OTHER_SESSION', cwd: 'C:\\', exitCode: 0, output: '' }]);
-    const manager = new AiManager(settings, () => true, getSessionContext);
+      ? [{ type: 'command', command: 'Set-Location E:\\work', cwd: 'E:\\work', exitCode: 0, output: '' }]
+      : [{ type: 'command', command: 'echo OTHER_SESSION', cwd: 'C:\\', exitCode: 0, output: '' }]);
+    const appendSessionContext = vi.fn();
+    const manager = new AiManager(settings, () => true, getSessionContext, appendSessionContext);
     const request = {
       requestId: 'request-1',
       sessionId: 'session-1',
@@ -68,5 +69,10 @@ describe('AI session isolation', () => {
     expect(content).toContain('Set-Location E:\\work');
     expect(content).not.toContain('OTHER_SESSION');
     expect(content).not.toContain('RENDERER_CONTEXT');
+    expect(appendSessionContext).toHaveBeenCalledWith('session-1', expect.objectContaining({
+      type: 'ai-exchange',
+      userRequest: 'list files',
+      suggestedCommand: 'Get-ChildItem',
+    }));
   });
 });

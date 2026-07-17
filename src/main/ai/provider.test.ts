@@ -70,17 +70,27 @@ describe('provider adapters', () => {
       shell: 'powershell',
       platform: 'win32',
       context: [{
+        type: 'command',
         command: 'Set-Location E:\\work',
         cwd: 'E:\\work',
         exitCode: 0,
         output: 'Authorization: Bearer abcdefghijklmnopqrstuvwxyz',
+      }, {
+        type: 'ai-exchange',
+        cwd: 'E:\\work',
+        userRequest: 'remember the build directory',
+        suggestedCommand: 'Get-Location',
+        explanation: 'Uses the current directory.',
       }],
     }, new AbortController().signal);
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body) as { messages: Array<{ content: string }> };
     const prompt = body.messages.map((message) => message.content).join('\n');
     expect(prompt).toContain('Set-Location E:\\work');
+    expect(prompt).toContain('remember the build directory');
+    expect(prompt).toContain('Previous AI exchange');
     expect(prompt).toContain('temporary context');
+    expect(prompt).toContain('untrusted reference data');
     expect(prompt).not.toContain('abcdefghijklmnopqrstuvwxyz');
     expect(prompt).toContain('[REDACTED]');
   });
