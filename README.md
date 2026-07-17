@@ -15,6 +15,7 @@ AI is disabled by default. With AI off, Relay Terminal behaves like a regular PT
 - Real PowerShell, Zsh, and Bash sessions backed by node-pty
 - Multiple tabs, terminal search, themes, font scaling, clipboard support, and command history
 - Per-tab AI enablement and provider selection
+- Bounded, in-memory context for coherent follow-up requests within each terminal tab
 - Natural-language command generation, unknown-command correction, and failed-command analysis
 - DeepSeek, DashScope, Volcengine Ark, and OpenAI-compatible endpoints
 - Local risk classification, output redaction, and explicit confirmation for high-risk commands
@@ -82,7 +83,7 @@ Command history remains owned by the selected shell. PowerShell uses its normal 
 
 Low- and medium-risk suggestions are inserted into the prompt but are never executed automatically. High-risk suggestions remain in the review popover until the user explicitly inserts them.
 
-While AI is enabled, each tab keeps a small temporary context of its recent commands, working directories, exit codes, and limited output. This context helps the model understand follow-up intent. It stays in main-process memory only, is isolated between tabs, and is cleared when AI is disabled, the tab closes, or the shell exits.
+While AI is enabled, each tab keeps a small temporary context of recent requests, suggestions, commands, working directories, exit codes, and limited output. This helps follow-up requests refer to earlier work without mixing context between tabs. It stays in main-process memory only and is cleared when AI is disabled, the provider changes, the tab closes, or the shell exits.
 
 ## Provider Defaults
 
@@ -106,9 +107,9 @@ While AI is enabled, each tab keeps a small temporary context of its recent comm
 ## Security And Privacy
 
 - AI-off tabs do not issue model requests and cancel in-flight requests when disabled.
-- Model requests contain only limited shell, platform, working-directory, user-input, failed-command, or current-tab command context.
+- Model requests contain only limited shell, platform, working-directory, user-input, AI-exchange, failed-command, or current-tab command context.
 - Temporary AI context is capped at 12 recent entries, 200 lines, and 32 KB; it is redacted before retention and never written to disk.
-- Disabling AI or closing a tab clears its temporary AI context without deleting the shell's native command history.
+- Disabling AI, switching providers, closing a tab, or exiting its shell clears that tab's temporary AI context without deleting native shell history or affecting other tabs.
 - Failed output is limited to the last 200 lines or 32 KB and redacted before transmission.
 - API keys and raw model responses are not written to application logs.
 - API keys are encrypted by Windows DPAPI or macOS Keychain through Electron `safeStorage`.
@@ -120,7 +121,7 @@ Risk detection and redaction are defense-in-depth controls, not a replacement fo
 
 Relay Terminal is a preview release intended for development, evaluation, and internal use. The project does not currently provide code-signed Windows binaries, Apple Developer ID signing or notarization, or signed Linux packages.
 
-The first release does not include split panes, session restoration, configuration sync, telemetry, continuous conversation, or multi-step agents.
+The first release does not include split panes, session restoration, configuration sync, telemetry, persistent conversation history, or multi-step agents.
 
 ## Development
 
