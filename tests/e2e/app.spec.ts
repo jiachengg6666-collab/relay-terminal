@@ -288,6 +288,8 @@ test('creates tabs, configures AI, and replaces semantic or unresolved input bef
     await expect(page.getByText('Replaces the unknown command.')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('.terminal-pane.is-active')).toContainText('RELAY_CORRECTED');
     await expect(page.locator('.terminal-pane.is-active')).not.toContainText('CommandNotFoundException');
+    expect(requestBodies.at(-1)).toContain('Previous AI exchange');
+    expect(requestBodies.at(-1)).toContain('remove a temporary directory');
     expect(requestCount).toBeGreaterThanOrEqual(2);
   } finally {
     await app.close();
