@@ -34,7 +34,7 @@ jobs:
         run: xvfb-run --auto-servernum npm run test:e2e
       - name: Upload Playwright diagnostics
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-output-${{ runner.os }}
           path: output/playwright
