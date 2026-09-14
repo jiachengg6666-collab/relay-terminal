@@ -39,13 +39,13 @@
     "lucide-react": "^0.468.0",
     "node-pty": "^1.0.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react-dom": "^19.3.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
     "@types/react": "^19.0.3",
-    "@types/react-dom": "^19.0.2",
+    "@types/react-dom": "^19.3.0",
     "@playwright/test": "^1.49.1",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.2",
